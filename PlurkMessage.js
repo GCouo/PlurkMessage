@@ -464,28 +464,30 @@
 
     // A. 串接噗浪內部機制，撈取頂部下拉選單的真實私訊清單 (修正版)
     function fetchPlurkPrivateTimeline() {
-        // 【修正版安全鎖】改用 unsafeWindow 才能穿透沙盒抓到噗浪的真實資料
-        const targetWindow = typeof unsafeWindow !== 'undefined' ? unsafeWindow : window;
+        if (!window.jQuery) return;
 
-        // 【修正】對齊噗浪原生的全域時間軸資料物件結構
-        if (!targetWindow.Plurks || !targetWindow.Plurks._plurks) {
-            setTimeout(fetchPlurkPrivateTimeline, 500);
-            return;
-        }
+        // 直接請求噗浪官方的未讀/私訊專用網址，杜絕 400 錯誤，且在任何分頁都能正常運作
+        jQuery.ajax({
+            url: '/TimeLine/getUnreadPlurks',
+            type: 'POST', // 噗浪內部機制偏好 POST 
+            dataType: 'json',
+            success: function(data) {
+                if (!data || !data.plurks) return;
 
-        let res = {
-            plurks: targetWindow.Plurks._plurks || [],
-            plurk_users: targetWindow.Plurks._users || {}
-        };
-            setTimeout(fetchPlurkPrivateTimeline, 500);
-            return;
-        }
+                let res = {
+                    plurks: data.plurks.filter(p => p.limited_to && p.limited_to !== 0),
+                    plurk_users: data.plurk_users || {}
+                };
 
-        let res = {
-            plurks: window.PlurksData ? window.PlurksData._plurks : [],
-            plurk_users: window.PlurksData ? window.PlurksData._users : {}
-        };
+                const listContainer = document.getElementById('fb-dropdown-user-list');
+                if (listContainer) listContainer.innerHTML = '';
+        if (listContainer) listContainer.innerHTML = '';
+            } // 這是第 484 行的 ajax success 結尾
+        }); // 這是補上對應的 ajax 請求結尾
+        
+        // 這裡就是直接對接你原本的 res.plurks.forEach(plurk => { ... 邏輯了！
 
+        
         if (res.plurks && Array.isArray(res.plurks)) {
             res.plurks = res.plurks.filter(p => p.limited_to && p.limited_to !== 0);
         }
@@ -553,6 +555,7 @@
                         });
                         fullList.appendChild(fullItem);
             });
+        } }); // <-- 補上這兩個，用來關閉 success 函式與 ajax 請求
     }
 
     // B. 真實載入右下角迷你對話紀錄
