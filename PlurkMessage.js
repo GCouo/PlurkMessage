@@ -466,10 +466,9 @@
     function fetchPlurkPrivateTimeline() {
         if (!window.jQuery) return;
 
-        // 直接請求噗浪官方的未讀/私訊專用網址，杜絕 400 錯誤，且在任何分頁都能正常運作
         jQuery.ajax({
             url: '/TimeLine/getUnreadPlurks',
-            type: 'POST', // 噗浪內部機制偏好 POST 
+            type: 'POST',
             dataType: 'json',
             success: function(data) {
                 if (!data || !data.plurks) return;
@@ -484,10 +483,10 @@
         if (listContainer) listContainer.innerHTML = '';
             } // 這是第 484 行的 ajax success 結尾
         }); // 這是補上對應的 ajax 請求結尾
-        
+
         // 這裡就是直接對接你原本的 res.plurks.forEach(plurk => { ... 邏輯了！
 
-        
+
         if (res.plurks && Array.isArray(res.plurks)) {
             res.plurks = res.plurks.filter(p => p.limited_to && p.limited_to !== 0);
         }
@@ -553,9 +552,12 @@
 
                             loadFullPageChat(plurk.plurk_id);
                         });
-                        fullList.appendChild(fullItem);
-            });
-        } }); // <-- 補上這兩個，用來關閉 success 函式與 ajax 請求
+            fullList.appendChild(fullItem);
+        });
+
+        // 以下這三行用來完美關閉 success、ajax 和 function
+            }
+        });
     }
 
     // B. 真實載入右下角迷你對話紀錄
