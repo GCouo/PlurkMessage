@@ -1,10 +1,9 @@
 // ==UserScript==
-// @name         噗浪私訊介面
-// @name:en      PlurkMessage
+// @name         噗浪智慧 FB 風格私訊擴充套件 (修正版)
 // @namespace    http://tampermonkey.net/
-// @version      1.1
-// @description  保留噗浪原背景，整合頂部通知、右下角迷你多對話框與頭貼懸浮未讀氣泡
-// @author       Gemini
+// @version      1.2
+// @description  保留噗浪原背景，整合頂部通知、右下角迷你多對話框、懸浮氣泡與滿版磨砂玻璃聊天室
+// @author       YourAICollaborator
 // @match        https://www.plurk.com/*
 // @grant        none
 // @run-at       document-end
@@ -13,32 +12,44 @@
 (function() {
     'use strict';
 
+    // 🕵️ 檢查當前網址是否符合你的「許願網址」格式：.../帳號/message
+    const urlPath = window.location.pathname;
+    const isFullMessagePage = /\/[a-zA-Z0-9_]+\/message\/?/.test(urlPath);
+
     // ==========================================
-    // 🎨 注入 FB Messenger 風格的 CSS 樣式
+    // 🎨 注入 FB Messenger 風格與滿版遮罩的 CSS 樣式
     // ==========================================
     const style = document.createElement('style');
     style.innerHTML = `
+        /* 【關鍵修正】如果是在專屬私訊頁面，隱藏噗浪原本的河道主元件，但保留 body 背景圖 */
+        ${isFullMessagePage ? `
+            #timeline_cnt, #plurk_form, #footer, .plurk_box, #form_holder, #dashboard_holder, .cmp_loading {
+                display: none !important;
+            }
+        ` : ''}
+
         /* 1. 頂部導航列的私訊按鈕 */
         #plurk-fb-msg-btn {
             position: relative;
             display: inline-block;
-            padding: 0 10px;
+            padding: 0 12px;
             cursor: pointer;
             font-weight: bold;
             color: #fff;
             line-height: 40px;
             height: 40px;
             vertical-align: top;
+            font-size: 13px;
         }
-        #plurk-fb-msg-btn:hover { background: rgba(255,255,255,0.15); }
+        #plurk-fb-msg-btn:hover { background: rgba(255,255,255,0.2); }
         #plurk-fb-msg-btn .badge {
             position: absolute;
-            top: 2px;
+            top: 4px;
             right: -2px;
             background: #f02849;
             color: white;
-            border-radius: 50%;
-            padding: 1px 5px;
+            border-radius: 10px;
+            padding: 1px 6px;
             font-size: 11px;
             line-height: 12px;
             font-family: Arial, sans-serif;
@@ -49,13 +60,12 @@
         #fb-msg-dropdown {
             position: absolute;
             top: 45px;
-            right: 100px;
             width: 360px;
             max-height: 480px;
             background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(8px);
+            backdrop-filter: blur(10px);
             border-radius: 8px;
-            box-shadow: 0 12px 28px 0 rgba(0,0,0,0.2), 0 2px 4px 0 rgba(0,0,0,0.1);
+            box-shadow: 0 12px 28px rgba(0,0,0,0.2);
             z-index: 9999;
             display: none;
             flex-direction: column;
@@ -76,44 +86,43 @@
             background: #0084ff;
             color: white;
             border: none;
-            padding: 4px 10px;
-            border-radius: 4px;
+            padding: 6px 12px;
+            border-radius: 6px;
             font-size: 12px;
             cursor: pointer;
+            font-weight: bold;
         }
         .btn-add-chat:hover { background: #006bf5; }
-        .dropdown-list {
-            flex: 1;
-            overflow-y: auto;
-        }
+        .dropdown-list { flex: 1; overflow-y: auto; }
         .dropdown-item {
             display: flex;
-            padding: 8px 16px;
+            padding: 10px 16px;
             align-items: center;
             cursor: pointer;
             text-decoration: none;
             color: inherit;
+            border-bottom: 1px solid rgba(0,0,0,0.03);
         }
         .dropdown-item:hover { background: rgba(0,0,0,0.05); }
-        .item-avatar { width: 48px; height: 48px; border-radius: 50%; margin-right: 12px; background: #ccc; }
+        .item-avatar { width: 48px; height: 48px; border-radius: 50%; margin-right: 12px; object-fit: cover; background: #ccc; }
         .item-body { flex: 1; min-width: 0; }
-        .item-name { font-weight: bold; font-size: 14px; margin-bottom: 2px; color: #050505; }
+        .item-name { font-weight: bold; font-size: 14px; margin-bottom: 4px; color: #050505; }
         .item-preview { font-size: 12px; color: #65676b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
         /* 3. 右下角迷你彈出對話框管理區 */
         #fb-chat-container {
             position: fixed;
             bottom: 0;
-            right: 80px;
+            right: 90px;
             display: flex;
             align-items: flex-end;
             gap: 12px;
             z-index: 9998;
-            pointer-events: none; /* 防止擋住後方河道滾動 */
+            pointer-events: none;
         }
         .chat-box {
-            width: 280px;
-            height: 380px;
+            width: 285px;
+            height: 400px;
             background: #fff;
             border-radius: 8px 8px 0 0;
             box-shadow: 0 12px 24px rgba(0,0,0,0.15);
@@ -125,7 +134,7 @@
         .chat-header {
             background: #0084ff;
             color: white;
-            padding: 8px 12px;
+            padding: 10px 12px;
             font-weight: bold;
             font-size: 13px;
             border-radius: 7px 7px 0 0;
@@ -134,57 +143,69 @@
             align-items: center;
             cursor: pointer;
         }
-        .chat-ops span { margin-left: 8px; cursor: pointer; opacity: 0.8; }
+        .chat-ops span { margin-left: 10px; cursor: pointer; opacity: 0.8; font-size: 14px; }
         .chat-ops span:hover { opacity: 1; }
-        .chat-messages { flex: 1; padding: 10px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; background: #fff; }
+        .chat-messages { flex: 1; padding: 12px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; background: #f9f9f9; }
 
         /* 💬 經典對話氣泡 */
-        .bubble { max-width: 75%; padding: 6px 12px; border-radius: 14px; font-size: 13px; line-height: 1.4; word-wrap: break-word; }
-        .b-them { background: #e4e6eb; color: #050505; align-self: flex-start; }
-        .b-me { background: #0084ff; color: white; align-self: flex-end; }
+        .bubble { max-width: 75%; padding: 8px 12px; border-radius: 16px; font-size: 13px; line-height: 1.4; word-wrap: break-word; }
+        .b-them { background: #e4e6eb; color: #050505; align-self: flex-start; border-top-left-radius: 4px; }
+        .b-me { background: #0084ff; color: white; align-self: flex-end; border-top-right-radius: 4px; }
 
-        .chat-input-area { padding: 8px; border-top: 1px solid #e4e6eb; background: #fff; }
-        .chat-input-area input { width: 100%; box-sizing: border-box; padding: 6px 12px; border-radius: 14px; border: 1px solid #ccd0d5; background: #f0f2f5; font-size: 13px; outline: none; }
+        .chat-input-area { padding: 10px; border-top: 1px solid #e4e6eb; background: #fff; }
+        .chat-input-area input { width: 100%; box-sizing: border-box; padding: 8px 12px; border-radius: 20px; border: 1px solid #ccd0d5; background: #f0f2f5; font-size: 13px; outline: none; }
+        .chat-input-area input:focus { background: #fff; border-color: #0084ff; }
 
         /* 4. 右側大垂直列的縮小圓形頭貼氣泡區 */
         #fb-bubble-sidebar {
             position: fixed;
-            right: 16px;
+            right: 20px;
             bottom: 20px;
             display: flex;
             flex-direction: column;
-            gap: 10px;
+            gap: 12px;
             z-index: 9999;
         }
         .avatar-bubble {
             position: relative;
-            width: 48px;
-            height: 48px;
+            width: 52px;
+            height: 52px;
             border-radius: 50%;
             cursor: pointer;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
             border: 2px solid #fff;
             background-size: cover;
+            background-position: center;
             transition: transform 0.2s;
         }
-        .avatar-bubble:hover { transform: scale(1.05); }
+        .avatar-bubble:hover { transform: scale(1.08); }
         .avatar-bubble .bubble-badge {
             position: absolute;
-            top: -4px;
-            right: -4px;
+            top: -2px;
+            right: -2px;
             background: #f02849;
             color: white;
             font-size: 11px;
             font-weight: bold;
-            border-radius: 50%;
+            border-radius: 10px;
             padding: 1px 5px;
             line-height: 12px;
-            border: 1px solid #fff;
+            border: 2px solid #fff;
+        }
+
+        /* 5. 滿版獨立分頁客製化樣式 (高質感半透明磨砂玻璃) */
+        #fb-full-page-container {
+            display: flex;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(255, 255, 255, 0.4);
+            backdrop-filter: blur(8px);
+            box-sizing: border-box;
         }
     `;
     document.head.appendChild(style);
 
-    // [這裡稍後將對接第二部分的 HTML 節點建置常式]
+    // [第一部分結束，等待第二部分拼接]
 
     // ==========================================
     // 🧱 建立並注入底層 HTML 核心節點
@@ -209,7 +230,8 @@
             <button class="btn-add-chat" id="fb-btn-new-chat">+ 新增對話</button>
         </div>
         <div class="dropdown-list" id="fb-dropdown-user-list">
-            </div>
+            <div style="text-align:center; padding:20px; color:#999; font-size:13px;">正在讀取私訊列表...</div>
+        </div>
     `;
     document.body.appendChild(msgDropdown);
 
@@ -217,8 +239,8 @@
     // 🔗 頂部導航列「私訊」按鈕注入邏輯
     // ==========================================
     function injectTopMenuButton() {
-        // 尋找噗浪頂部的導航工具列（通常包含通知、噗幣等圖示的區塊）
-        const topBar = document.querySelector('#top_bar .right_items, #nav_menu, .legal-links');
+        // 精準鎖定噗浪頂部右側的選單容器 (靠近通知與個人檔案的地方)
+        const topBar = document.querySelector('#top_bar .right_items, #nav_menu');
         if (topBar && !document.getElementById('plurk-fb-msg-btn')) {
             const msgBtn = document.createElement('div');
             msgBtn.id = 'plurk-fb-msg-btn';
@@ -227,24 +249,28 @@
             // 點擊頂部私訊按鈕，切換下拉選單顯示/隱藏
             msgBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
-                msgDropdown.style.display = msgDropdown.style.display === 'flex' ? 'none' : 'flex';
-                // 調整下拉選單對齊位置
-                const rect = msgBtn.getBoundingClientRect();
-                msgDropdown.style.top = (rect.bottom + window.scrollY) + 'px';
-                msgDropdown.style.left = (rect.left - 300 + window.scrollX) + 'px';
+                const isShowing = msgDropdown.style.display === 'flex';
+                msgDropdown.style.display = isShowing ? 'none' : 'flex';
+
+                if (!isShowing) {
+                    // 讓下拉選單完美對齊私訊按鈕的下方
+                    const rect = msgBtn.getBoundingClientRect();
+                    msgDropdown.style.top = (rect.bottom + window.scrollY) + 'px';
+                    msgDropdown.style.left = (rect.left - 200 + window.scrollX) + 'px';
+                }
             });
 
-            // 插入到頂部列
+            // 插入到頂部列的最前方 (大約會在噗幣圖示附近)
             topBar.insertBefore(msgBtn, topBar.firstChild);
         }
     }
 
-    // 噗浪是動態加載的，用定時器確保按鈕一定會被塞進去
+    // 噗浪為動態渲染，使用定時器確保即使換頁按鈕依然存在
     setInterval(injectTopMenuButton, 1000);
 
-    // 點擊網頁其他地方時，自動收起下拉選單
+    // 點擊網頁其他空白處時，自動收起下拉選單
     document.addEventListener('click', () => {
-        msgDropdown。style.display = 'none';
+        msgDropdown.style.display = 'none';
     });
     msgDropdown.addEventListener('click', (e) => e.stopPropagation());
 
@@ -252,43 +278,38 @@
     // 🕵️ 網址攔截與「Ctrl/中鍵開新分頁」支援核心
     // ==========================================
 
-    // A. 偵測是否直接身處在你許願的滿版 /message 網址
-    const urlPath = window.location.pathname;
-    const isFullMessagePage = /\/[a-zA-Z0-9_]+\/message\/?/.test(urlPath);
-
-    if (isFullMessagePage) {
-        // 如果是直接開此網址，稍後在第三部分會處理將整個河道擦拭，改成滿版聊天室
-        console.log("🕵️ [FB私訊] 偵測到進入專屬私訊分頁網址。");
-    }
-
-    // B. 優化動態建立聯絡人超連結的點擊邏輯 (支援中鍵、右鍵、Ctrl)
-    function createChatLinkElement(userId, nickname, avatarUrl, lastText) {
+    // 建立聯絡人超連結節點的通用函式 (同時支援下拉選單與滿版分頁)
+    function createChatLinkElement(userId, nickname, avatarUrl, lastText, clickCallback) {
         const item = document.createElement('a');
         item.className = 'dropdown-item';
-        // 給它一個標準的虛擬 href 網址，這樣右鍵選單、Ctrl+左鍵、滑鼠中鍵就能原生觸發「在新分頁開啟」
+
+        // 給予它標準的虛擬真實網址，以便讓滑鼠中鍵、右鍵新分頁、Ctrl+左鍵完全正常運作
         item.href = `https://www.plurk.com/${userId}/message`;
 
         item.innerHTML = `
             <img class="item-avatar" src="${avatarUrl}" onerror="this.src='https://www.plurk.com/static/default_big.jpg'">
             <div class="item-body">
-                <div class="item-name">${nickname} (${userId})</div>
+                <div class="item-name">${nickname}</div>
                 <div class="item-preview">${lastText}</div>
             </div>
         `;
 
-        // 攔截常規左鍵點擊（如果是純左鍵，且沒按 Ctrl，就不開新分頁，直接在右下角生出迷你對話框）
+        // 攔截滑鼠左鍵點擊
         item.addEventListener('click', (e) => {
-            if (!e.ctrlKey && !e.metaKey && e.button === 0) {
-                e.preventDefault(); // 阻止瀏覽器跳轉網址
-                msgDropdown.style.display = 'none'; // 關閉下拉選單
-                openMiniChatBox(userId, nickname, avatarUrl); // 呼叫第三部分的迷你對話框生成函式
+            // 如果使用者按住了 Ctrl 鍵、Meta 鍵，或不是用滑鼠左鍵點的，就放行讓瀏覽器自己開新分頁
+            if (e.ctrlKey || e.metaKey || e.button !== 0) {
+                return;
             }
+
+            // 如果是純左鍵點擊，則阻止預設的網頁跳轉，改在目前頁面右下角呼叫對話框
+            e.preventDefault();
+            clickCallback();
         });
 
         return item;
     }
 
-    // [這裡稍後將由第三部分接續編寫動態對話框控制常式、新增對話與 API 資料串接]
+    // [第二部分結束，等待第三部分拼接]
 
     // 用來追蹤目前右下角開啟的迷你對話框與氣泡狀態
     const activeChats = {};
@@ -296,7 +317,7 @@
     // ==========================================
     // 💬 核心：開啟/渲染右下角迷你對話框
     // ==========================================
-    function openMiniChatBox(userId, nickname, avatarUrl, plurkId = null) {
+    window.openMiniChatBox = function(userId, nickname, avatarUrl, plurkId = null) {
         // 如果這個人的對話框已經開著了，就直接聚焦，不重複建立
         if (activeChats[userId]) {
             if (activeChats[userId].mode === 'bubble') {
@@ -364,7 +385,7 @@
 
         // 撈取真實聊天訊息
         loadChatMessages(userId, plurkId);
-    }
+    };
 
     // ==========================================
     // 🎈 核心：縮小成大頭貼懸浮氣泡
@@ -409,7 +430,7 @@
         chat.mode = 'window';
         chat.unreadCount = 0; // 點開代表已讀
 
-        openMiniChatBox(userId, chat.nickname, chat.avatarUrl, chat.plurkId);
+        openMiniChatBox(chat.userId || userId, chat.nickname, chat.avatarUrl, chat.plurkId);
     }
 
     // ==========================================
@@ -417,7 +438,7 @@
     // ==========================================
     document.getElementById('fb-btn-new-chat').addEventListener('click', (e) => {
         e.stopPropagation();
-        const targetId = prompt("請輸入想要發起私訊的噗浪使用者 ID (例如: humica):");
+        const targetId = prompt("請輸入想要發起私訊的噗浪使用者 ID (例如: z6423192):");
         if (!targetId) return;
 
         // 透過噗浪內建機制查詢該使用者名稱並直接發起對話
@@ -433,7 +454,6 @@
                 }
             });
         } else {
-            // 備用方案：直接以填寫的 ID 開啟對話
             openMiniChatBox(targetId, targetId, 'https://www.plurk.com/static/default_big.jpg', null);
         }
     });
@@ -442,21 +462,24 @@
     // 📡 噗浪原生 API 資料對接與撈取（免金鑰密碼）
     // ==========================================
 
-    // A. 串接噗浪內部機制，撈取頂部下拉選單的真實私訊清單
+    // A. 串接噗浪內部機制，撈取頂部下拉選單的真實私訊清單 (修正版)
     function fetchPlurkPrivateTimeline() {
         if (!window.jQuery) return;
 
-        // 呼叫噗浪官方私訊過濾 API (my_replurk)
+        // 【重大修正】改用噗浪網頁版自己內部真正的 API 網址與格式
         jQuery.ajax({
-            url: '/APP/Timeline/getPlurks',
-            输入: 'GET',
-            data: { filter: 'my_replurk', limit: 15 },
+            url: '/TimeLine/getPlurks',
+            type: 'GET', // 改回 GET
+            data: {
+                filter: 'my_replurk',
+                limit: 15
+            },
             dataType: 'json',
             success: function(res) {
                 if (!res || !res.plurks) return;
 
                 const listContainer = document.getElementById('fb-dropdown-user-list');
-                listContainer.innerHTML = ''; // 清空字串
+                if (listContainer) listContainer.innerHTML = '';
 
                 const users = res.plurk_users || {};
                 let unreadTotal = 0;
@@ -469,34 +492,62 @@
                     const avatar = user.avatar ? `https://avatars.plurk.com/${ownerId}-big${user.avatar}.jpg` : 'https://www.plurk.com/static/default_big.jpg';
                     const lastText = plurk.content_raw || "發送了一則私訊...";
 
-                    // 計算未讀通知
                     if (plurk.is_unread === 1) unreadTotal++;
 
-                    // 呼叫第二部分做好的超連結生成元件 (支援中鍵與右鍵分頁)
-                    const itemElement = createChatLinkElement(userIdStr, nickname, avatar, lastText);
-
-                    // 點選時順便把 plurk_id 餵過去
-                    itemElement.addEventListener('click', () => {
-                        // 修正綁定，確保點擊會傳入真實 plurk_id
+                    // 呼叫第二部分做好的超連結生成元件
+                    const itemElement = createChatLinkElement(userIdStr, nickname, avatar, lastText, () => {
                         openMiniChatBox(userIdStr, nickname, avatar, plurk.plurk_id);
                     });
 
-                    listContainer.appendChild(itemElement);
+                    if (listContainer) listContainer.appendChild(itemElement);
                 });
 
                 // 更新頂部按鈕的未讀數字紅點
                 const mainBadge = document.getElementById('fb-main-badge');
-                if (unreadTotal > 0) {
-                    mainBadge.innerText = unreadTotal;
-                    mainBadge.style.display = 'inline-block';
-                } else {
-                    mainBadge.style.display = 'none';
+                if (mainBadge) {
+                    if (unreadTotal > 0) {
+                        mainBadge.innerText = unreadTotal;
+                        mainBadge.style.display = 'inline-block';
+                    } else {
+                        mainBadge.style.display = 'none';
+                    }
+                }
+
+                // 如果目前是在滿版私訊頁面，同步把列表鋪到左側面板
+                const fullList = document.getElementById('fb-full-user-list');
+                if (isFullMessagePage && fullList && listContainer) {
+                    fullList.innerHTML = '';
+                    res.plurks.forEach(plurk => {
+                        const ownerId = plurk.owner_id;
+                        const user = users[ownerId] || {};
+                        const userIdStr = user.nick_name || ownerId.toString();
+                        const nickname = user.display_name || user.nick_name || "噗友";
+                        const avatar = user.avatar ? `https://avatars.plurk.com/${ownerId}-big${user.avatar}.jpg` : 'https://www.plurk.com/static/default_big.jpg';
+                        const lastText = plurk.content_raw || "發送了一則私訊...";
+
+                        const fullItem = createChatLinkElement(userIdStr, nickname, avatar, lastText, () => {
+                            document.getElementById('fb-full-chat-header').innerText = nickname;
+                            document.getElementById('fb-full-input-area').style.display = 'block';
+
+                            const mainInput = document.getElementById('fb-full-main-input');
+                            mainInput.onkeydown = (e) => {
+                                if (e.key === 'Enter' && mainInput.value.trim() !== '') {
+                                    sendPrivateMessage(userIdStr, mainInput.value.trim(), plurk.plurk_id);
+                                    mainInput.value = '';
+                                    setTimeout(() => { loadFullPageChat(plurk.plurk_id); }, 500);
+                                }
+                            };
+
+                            loadFullPageChat(plurk.plurk_id);
+                        });
+                        fullList.appendChild(fullItem);
+                    });
                 }
             }
         });
     }
 
-    // B. 真實載入某一條私訊的所有對話紀錄並渲染成氣泡
+    // B. 真實載入右下角迷你對話紀錄
     window.loadChatMessages = function(userId, plurkId) {
         const msgArea = document.getElementById(`fb-msgs-${userId}`);
         if (!msgArea) return;
@@ -511,18 +562,14 @@
             data: { plurk_id: plurkId },
             dataType: 'json',
             success: function(res) {
-                msgArea.innerHTML = ''; // 清空載入中提示
-
-                // 1. 鋪設第一則主噗訊息 (對話開頭)
+                msgArea.innerHTML = '';
                 if (res.plurk) {
-                    const isMe = res.plurk.owner_id == window.SITE_USER_ID; // SITE_USER_ID 是噗浪內建變數
+                    const isMe = res.plurk.owner_id == window.SITE_USER_ID;
                     const bubble = document.createElement('div');
                     bubble.className = `bubble ${isMe ? 'b-me' : 'b-them'}`;
                     bubble.innerText = res.plurk.content_raw;
-                    msgArea。appendChild(bubble);
+                    msgArea.appendChild(bubble);
                 }
-
-                // 2. 鋪設底下的所有回應 (聊天紀錄)
                 if (res.responses) {
                     res.responses.forEach(resp => {
                         const isMe = resp.user_id == window.SITE_USER_ID;
@@ -532,17 +579,51 @@
                         msgArea.appendChild(bubble);
                     });
                 }
-
-                // 自動滾動到對話最底部
                 msgArea.scrollTop = msgArea.scrollHeight;
             }
         });
     };
 
-    // C. 串接發送私訊 API
+    // C. 專為滿版大畫面設計的訊息載入器
+    function loadFullPageChat(plurkId) {
+        const fullBody = document.getElementById('fb-full-chat-body');
+        if (!fullBody) return;
+
+        jQuery.ajax({
+            url: '/APP/Responses/get',
+            type: 'GET',
+            data: { plurk_id: plurkId },
+            dataType: 'json',
+            success: function(res) {
+                fullBody.innerHTML = '';
+                if (res.plurk) {
+                    const isMe = res.plurk.owner_id == window.SITE_USER_ID;
+                    const bubble = document.createElement('div');
+                    bubble.className = `bubble ${isMe ? 'b-me' : 'b-them'}`;
+                    bubble.style.fontSize = '15px';
+                    bubble.style.padding = '10px 16px';
+                    bubble.innerText = res.plurk.content_raw;
+                    fullBody.appendChild(bubble);
+                }
+                if (res.responses) {
+                    res.responses.forEach(resp => {
+                        const isMe = resp.user_id == window.SITE_USER_ID;
+                        const bubble = document.createElement('div');
+                        bubble.className = `bubble ${isMe ? 'b-me' : 'b-them'}`;
+                        bubble.style.fontSize = '15px';
+                        bubble.style.padding = '10px 16px';
+                        bubble.innerText = resp.content_raw;
+                        fullBody.appendChild(bubble);
+                    });
+                }
+                fullBody.scrollTop = fullBody.scrollHeight;
+            }
+        });
+    }
+
+    // D. 串接發送私訊 API
     function sendPrivateMessage(userId, text, plurkId) {
         if (!plurkId) {
-            // 如果這是一個全新發起、原本不存在的私訊，需先呼叫 plurkAdd 建立私密噗
             jQuery.ajax({
                 url: '/APP/Timeline/plurkAdd',
                 type: 'POST',
@@ -550,77 +631,58 @@
                 dataType: 'json',
                 success: function(res) {
                     if (res && res.plurk_id) {
-                        activeChats[userId].plurkId = res.plurk_id;
+                        if(activeChats[userId]) activeChats[userId].plurkId = res.plurk_id;
                         loadChatMessages(userId, res.plurk_id);
+                        fetchPlurkPrivateTimeline();
                     }
                 }
             });
         } else {
-            // 如果本來就有私訊噗，直接呼叫 responseAdd 留言回應，達到聊天效果
             jQuery.ajax({
                 url: '/APP/Responses/responseAdd',
-                输入: 'POST',
+                type: 'POST',
                 data: { plurk_id: plurkId, content: text, qualifier: ':' },
                 dataType: 'json',
                 success: function() {
-                    loadChatMessages(userId, plurkId); // 重新整理聊天視窗
+                    loadChatMessages(userId, plurkId);
+                    fetchPlurkPrivateTimeline();
                 }
             });
         }
     }
 
-    // 進入網頁後立刻初始化私訊清單，隨後每 30 秒自動更新一次未讀
-    setTimeout(fetchPlurkPrivateTimeline, 2000);
-    setInterval(fetchPlurkPrivateTimeline, 30000);
+    // 啟動與常駐輪詢
+    setTimeout(fetchPlurkPrivateTimeline, 1500);
+    setInterval(fetchPlurkPrivateTimeline, 20000);
 
     // ==========================================
-    // 🖥️ 專屬虛擬 /message 網址的滿版魔改渲染
+    // 🖥️ 專屬虛擬 /message 網址的滿版魔改渲染 (優化版：不卡死死白)
     // ==========================================
     if (isFullMessagePage) {
-        window.addEventListener('load', () => {
-            // 擦拭所有網頁主體內容，但「刻意保留噗浪原有的背景 body 樣式與背景圖」
-            const plurkBgClass = document.body.className;
-            const plurkBgStyle = document.body.getAttribute('style');
-
-            document.body.innerHTML = `
-                <div style="display:flex; width:100vw; height:100vh; background:rgba(255,255,255,0.2); backdrop-filter:blur(5px);">
-                    <div style="width:320px; background:rgba(255,255,255,0.9); border-right:1px solid #ccd0d5; display:flex; flex-direction:column;">
-                        <div class="sidebar-header" style="padding:16px; font-size:20px; font-weight:bold; border-bottom:1px solid #e4e6eb;">專屬私訊分頁</div>
-                        <div class="dropdown-list" id="fb-full-user-list" style="flex:1; overflow-y:auto;">
-                            <div style="text-align:center; padding:20px; color:#666;">正在同步私訊河道...</div>
-                        </div>
-                    </div>
-                    <div style="flex:1; display:flex; flex-direction:column; background:rgba(255,255,255,0.75);">
-                        <div id="fb-full-chat-header" style="padding:16px 24px; font-weight:bold; font-size:18px; border-bottom:1px solid #ccd0d5; background:#fff;">請選擇聯絡人發起聊天</div>
-                        <div class="chat-messages" id="fb-full-chat-body" style="flex:1; padding:20px; background:transparent;"></div>
-                        <div class="chat-input-area" id="fb-full-input-area" style="display:none; padding:16px; background:#fff;">
-                            <input type="text" id="fb-full-main-input" style="width:100%; padding:10px; border-radius:20px;" placeholder="輸入訊息...">
-                        </div>
-                    </div>
+        const fullPageContainer = document.createElement('div');
+        fullPageContainer.id = 'fb-full-page-container';
+        fullPageContainer.innerHTML = `
+            <div style="width:340px; background:rgba(255,255,255,0.9); border-right:1px solid #ccd0d5; display:flex; flex-direction:column; height:100%;">
+                <div style="padding:18px 16px; font-size:20px; font-weight:bold; border-bottom:1px solid #e4e6eb; color:#050505;">專屬私訊分頁</div>
+                <div class="dropdown-list" id="fb-full-user-list" style="flex:1; overflow-y:auto;">
+                    <div style="text-align:center; padding:20px; color:#666; font-size:13px;">正在同步私訊河道...</div>
                 </div>
-            `;
+            </div>
+            <div style="flex:1; display:flex; flex-direction:column; height:100%;">
+                <div id="fb-full-chat-header" style="padding:18px 24px; font-weight:bold; font-size:16px; border-bottom:1px solid #ccd0d5; background:#fff; color:#050505;">請選擇左側聯絡人發起聊天</div>
+                <div class="chat-messages" id="fb-full-chat-body" style="flex:1; padding:24px; background:transparent;"></div>
+                <div class="chat-input-area" id="fb-full-input-area" style="display:none; padding:16px; background:#fff; border-top:1px solid #e4e6eb;">
+                    <input type="text" id="fb-full-main-input" placeholder="輸入訊息...">
+                </div>
+            </div>
+        `;
 
-            // 還原背景
-            document.body.className = plurkBgClass;
-            if(plurkBgStyle) document.body.setAttribute('style', plurkBgStyle);
-
-            // 重新將選單資料餵到滿版網頁的左側
-            setTimeout(() => {
-                const dropList = document.getElementById('fb-dropdown-user-list');
-                const fullList = document.getElementById('fb-full-user-list');
-                if (dropList && fullList) {
-                    fullList.innerHTML = dropList.innerHTML;
-                    // 滿版左側點擊事件綁定
-                    fullList.querySelectorAll('.dropdown-item').forEach((item, index) => {
-                        item.addEventListener('click', (e) => {
-                            e.preventDefault();
-                            // 這裡可以擴充將迷你對話框的聊天紀錄，直接畫到滿版中央
-                            alert("已在右下角為您喚醒該聯絡人對話框！");
-                        });
-                    });
-                }
-            }, 3500);
-        });
+        // 確保在 DOM 完全載入後才加載滿版視窗
+        if (document.body) {
+            document.body.appendChild(fullPageContainer);
+        } else {
+            window.addEventListener('DOMContentLoaded', () => { document.body.appendChild(fullPageContainer); });
+        }
     }
 
 })();
