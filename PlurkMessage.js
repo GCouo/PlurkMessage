@@ -463,24 +463,33 @@
     // ==========================================
 
     // A. 串接噗浪內部機制，撈取頂部下拉選單的真實私訊清單 (修正版)
-    function fetchPlurkPrivateTimeline() {
+    async function fetchPlurkPrivateTimeline() {
         if (!window.jQuery) return;
 
-        const targetWindow = typeof unsafeWindow !== 'undefined' ? unsafeWindow : window;
-        const nonce = (targetWindow.GLOBAL && targetWindow.GLOBAL.req_nonce) || '';
+        const nonce = (window.GLOBAL && window.GLOBAL.req_nonce) || '';
 
-        fetch('/TimeLine/getUnreadPlurks', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: `req_nonce=${encodeURIComponent(nonce)}`
-        })
-        .then(response => response.json())
-        .then(data => {
+        try {
+            const response = await fetch('/TimeLine/getUnreadPlurks', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: `req_nonce=${encodeURIComponent(nonce)}`
+            });
+
+            const data = await response.json();
             if (!data || !data.plurks) return;
-            // ... (其餘邏輯維持不變)
-        })
-        .catch(err => console.error("撈取噗浪私訊失敗:", err));
+
+            // 執行渲染邏輯...
+
+        } catch (err) {
+            console.error("撈取噗浪私訊失敗:", err);
+        }
     }
+    // 【修正位置】加在這裡！
+    // 確保放在所有函式定義之後，且在 IIFE 的結尾括號之前
+    initChatLayout();
+    fetchPlurkPrivateTimeline();
+
+})();
 
     // B. 真實載入右下角迷你對話紀錄
     window.loadChatMessages = function(userId, plurkId) {
@@ -619,9 +628,4 @@
             window.addEventListener('DOMContentLoaded', () => { document.body.appendChild(fullPageContainer); });
         }
     }
-
-// 確保這些函式只在頁面載入後執行
-    initChatLayout();
-    fetchPlurkPrivateTimeline();
-
-})(); // 這是原本封裝腳本的結尾，請確保你的 `})();` 長這樣
+})();
