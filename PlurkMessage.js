@@ -464,25 +464,19 @@
 
     // A. 串接噗浪內部機制，撈取頂部下拉選單的真實私訊清單 (修正版)
     function fetchPlurkPrivateTimeline() {
-        if (!window.jQuery) return;
+        let res = {
+            plurks: window.PlurksData ? window.PlurksData._plurks : [],
+            plurk_users: window.PlurksData ? window.PlurksData._users : {}
+        };
 
-        // 【重大修正】改用噗浪網頁版自己內部真正的 API 網址與格式
-        jQuery.ajax({
-            url: '/TimeLine/getPlurks',
-            type: 'GET', // 改回 GET
-            data: {
-                filter: 'my_replurk',
-                limit: 15
-            },
-            dataType: 'json',
-            success: function(res) {
-                if (!res || !res.plurks) return;
+        if (res.plurks && Array.isArray(res.plurks)) {
+            res.plurks = res.plurks.filter(p => p.limited_to && p.limited_to !== 0);
+        }
 
-                const listContainer = document.getElementById('fb-dropdown-user-list');
-                if (listContainer) listContainer.innerHTML = '';
+        if (!res || !res.plurks) return;
 
-                const users = res.plurk_users || {};
-                let unreadTotal = 0;
+        const listContainer = document.getElementById('fb-dropdown-user-list');
+        if (listContainer) listContainer.innerHTML = '';
 
                 res.plurks.forEach(plurk => {
                     const ownerId = plurk.owner_id;
@@ -544,8 +538,6 @@
                     });
                 }
             }
-        });
-    }
 
     // B. 真實載入右下角迷你對話紀錄
     window.loadChatMessages = function(userId, plurkId) {
