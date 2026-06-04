@@ -551,9 +551,8 @@
                             loadFullPageChat(plurk.plurk_id);
                         });
                         fullList.appendChild(fullItem);
-                    });
-                }
-            }
+            });
+    }
 
     // B. 真實載入右下角迷你對話紀錄
     window.loadChatMessages = function(userId, plurkId) {
