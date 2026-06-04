@@ -467,7 +467,15 @@
         if (!window.jQuery) return;
 
         // 使用原生 fetch 請求噗浪官方私訊 API，徹底解決沙盒牆與 400 錯誤
-        fetch('/TimeLine/getUnreadPlurks', { method: 'POST' })
+        // 使用原生 fetch 並帶上噗浪必備的安全驗證欄位
+        const targetWindow = typeof unsafeWindow !== 'undefined' ? unsafeWindow : window;
+        const nonce = (targetWindow.GLOBAL && targetWindow.GLOBAL.req_nonce) || '';
+
+        fetch('/TimeLine/getUnreadPlurks', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: `req_nonce=${encodeURIComponent(nonce)}`
+        })
             .then(response => response.json())
             .then(data => {
                 if (!data || !data.plurks) return;
