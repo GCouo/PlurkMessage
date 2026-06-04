@@ -538,6 +538,12 @@
             .catch(err => console.error("撈取噗浪私訊失敗:", err));
     }
 
+    // 【核心修正】在腳本載入時，真正發動引擎，執行初始化與抓取資料
+    initChatLayout();
+    fetchPlurkPrivateTimeline();
+
+})(); // 這是原本腳本最底部的結尾
+
     // B. 真實載入右下角迷你對話紀錄
     window.loadChatMessages = function(userId, plurkId) {
         const msgArea = document.getElementById(`fb-msgs-${userId}`);
