@@ -5,7 +5,7 @@
 // @description  保留噗浪原背景，整合頂部通知、右下角迷你多對話框、懸浮氣泡與滿版磨砂玻璃聊天室
 // @author       YourAICollaborator
 // @match        https://www.plurk.com/*
-// @grant        none
+// @grant        unsafeWindow
 // @run-at       document-end
 // ==/UserScript==
 
@@ -464,6 +464,22 @@
 
     // A. 串接噗浪內部機制，撈取頂部下拉選單的真實私訊清單 (修正版)
     function fetchPlurkPrivateTimeline() {
+        // 【修正版安全鎖】改用 unsafeWindow 才能穿透沙盒抓到噗浪的真實資料
+        const targetWindow = typeof unsafeWindow !== 'undefined' ? unsafeWindow : window;
+
+        if (!targetWindow.PlurksData || !targetWindow.PlurksData._plurks || targetWindow.PlurksData._plurks.length === 0) {
+            setTimeout(fetchPlurkPrivateTimeline, 500);
+            return;
+        }
+
+        let res = {
+            plurks: targetWindow.PlurksData._plurks,
+            plurk_users: targetWindow.PlurksData._users
+        };
+            setTimeout(fetchPlurkPrivateTimeline, 500);
+            return;
+        }
+
         let res = {
             plurks: window.PlurksData ? window.PlurksData._plurks : [],
             plurk_users: window.PlurksData ? window.PlurksData._users : {}
