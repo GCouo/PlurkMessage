@@ -467,14 +467,15 @@
         // 【修正版安全鎖】改用 unsafeWindow 才能穿透沙盒抓到噗浪的真實資料
         const targetWindow = typeof unsafeWindow !== 'undefined' ? unsafeWindow : window;
 
-        if (!targetWindow.PlurksData || !targetWindow.PlurksData._plurks || targetWindow.PlurksData._plurks.length === 0) {
+        // 【修正】對齊噗浪原生的全域時間軸資料物件結構
+        if (!targetWindow.Plurks || !targetWindow.Plurks._plurks) {
             setTimeout(fetchPlurkPrivateTimeline, 500);
             return;
         }
 
         let res = {
-            plurks: targetWindow.PlurksData._plurks,
-            plurk_users: targetWindow.PlurksData._users
+            plurks: targetWindow.Plurks._plurks || [],
+            plurk_users: targetWindow.Plurks._users || {}
         };
             setTimeout(fetchPlurkPrivateTimeline, 500);
             return;
