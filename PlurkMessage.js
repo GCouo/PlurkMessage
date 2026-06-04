@@ -466,11 +466,10 @@
     function fetchPlurkPrivateTimeline() {
         if (!window.jQuery) return;
 
-        jQuery.ajax({
-            url: '/TimeLine/getUnreadPlurks',
-            type: 'POST',
-            dataType: 'json',
-            success: function(data) {
+        // 改用原生 fetch 請求私訊，這樣尾巴完全不用包括號，絕不打叉
+        fetch('/TimeLine/getUnreadPlurks', { method: 'POST' })
+            .then(response => response.json())
+            .then(data => {
                 if (!data || !data.plurks) return;
 
                 let res = {
@@ -553,11 +552,7 @@
                             loadFullPageChat(plurk.plurk_id);
                         });
             fullList.appendChild(fullItem);
-        });
-
-        // 以下這三行用來完美關閉 success、ajax 和 function
-            }
-        });
+            });
     }
 
     // B. 真實載入右下角迷你對話紀錄
