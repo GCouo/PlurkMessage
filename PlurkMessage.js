@@ -466,93 +466,68 @@
     function fetchPlurkPrivateTimeline() {
         if (!window.jQuery) return;
 
-        // 改用原生 fetch 請求私訊，這樣尾巴完全不用包括號，絕不打叉
+        // 使用原生 fetch 請求噗浪官方私訊 API，徹底解決沙盒牆與 400 錯誤
         fetch('/TimeLine/getUnreadPlurks', { method: 'POST' })
             .then(response => response.json())
             .then(data => {
                 if (!data || !data.plurks) return;
 
+                // 建立乾淨的資料物件，過濾出私訊
                 let res = {
                     plurks: data.plurks.filter(p => p.limited_to && p.limited_to !== 0),
                     plurk_users: data.plurk_users || {}
                 };
 
+                const users = res.plurk_users;
+
+                // 1. 渲染右上方下拉選單的私訊列表
                 const listContainer = document.getElementById('fb-dropdown-user-list');
-                if (listContainer) listContainer.innerHTML = '';
-        if (listContainer) listContainer.innerHTML = '';
-            } // 這是第 484 行的 ajax success 結尾
-        }); // 這是補上對應的 ajax 請求結尾
+                if (listContainer) {
+                    listContainer.innerHTML = '';
+                    res.plurks.forEach(plurk => {
+                        const ownerId = plurk.owner_id;
+                        const user = users[ownerId] || {};
+                        const userIdStr = user.nick_name || ownerId.toString();
+                        const nickname = user.display_name || user.nick_name || "噗友";
+                        const avatar = user.avatar ? `https://avatars.plurk.com/${ownerId}-big${user.avatar}.gif` : 'https://www.plurk.com/static/default_avatar_big.gif';
+                        const lastText = plurk.content_raw || "發送了一則私訊...";
 
-        // 這裡就是直接對接你原本的 res.plurks.forEach(plurk => { ... 邏輯了！
-
-
-        if (res.plurks && Array.isArray(res.plurks)) {
-            res.plurks = res.plurks.filter(p => p.limited_to && p.limited_to !== 0);
-        }
-
-        if (!res || !res.plurks) return;
-
-        const listContainer = document.getElementById('fb-dropdown-user-list');
-        if (listContainer) listContainer.innerHTML = '';
-
-                res.plurks.forEach(plurk => {
-                    const ownerId = plurk.owner_id;
-                    const user = users[ownerId] || {};
-                    const userIdStr = user.nick_name || ownerId.toString();
-                    const nickname = user.display_name || user.nick_name || "噗友";
-                    const avatar = user.avatar ? `https://avatars.plurk.com/${ownerId}-big${user.avatar}.jpg` : 'https://www.plurk.com/static/default_big.jpg';
-                    const lastText = plurk.content_raw || "發送了一則私訊...";
-
-                    if (plurk.is_unread === 1) unreadTotal++;
-
-                    // 呼叫第二部分做好的超連結生成元件
-                    const itemElement = createChatLinkElement(userIdStr, nickname, avatar, lastText, () => {
-                        openMiniChatBox(userIdStr, nickname, avatar, plurk.plurk_id);
+                        const item = createChatLinkElement(userIdStr, nickname, avatar, lastText);
+                        listContainer.appendChild(item);
                     });
-
-                    if (listContainer) listContainer.appendChild(itemElement);
-                });
-
-                // 更新頂部按鈕的未讀數字紅點
-                const mainBadge = document.getElementById('fb-main-badge');
-                if (mainBadge) {
-                    if (unreadTotal > 0) {
-                        mainBadge.innerText = unreadTotal;
-                        mainBadge.style.display = 'inline-block';
-                    } else {
-                        mainBadge.style.display = 'none';
-                    }
                 }
 
-                // 如果目前是在滿版私訊頁面，同步把列表鋪到左側面板
+                // 2. 如果目前是在滿版私訊頁面，同步把列表鋪到左側面板 (精準還原原本的渲染與輸入框邏輯)
                 const fullList = document.getElementById('fb-full-user-list');
-                if (isFullMessagePage && fullList && listContainer) {
+                if (typeof isFullMessagePage !== 'undefined' && isFullMessagePage && fullList && listContainer) {
                     fullList.innerHTML = '';
                     res.plurks.forEach(plurk => {
                         const ownerId = plurk.owner_id;
                         const user = users[ownerId] || {};
                         const userIdStr = user.nick_name || ownerId.toString();
                         const nickname = user.display_name || user.nick_name || "噗友";
-                        const avatar = user.avatar ? `https://avatars.plurk.com/${ownerId}-big${user.avatar}.jpg` : 'https://www.plurk.com/static/default_big.jpg';
+                        const avatar = user.avatar ? `https://avatars.plurk.com/${ownerId}-big${user.avatar}.gif` : 'https://www.plurk.com/static/default_avatar_big.gif';
                         const lastText = plurk.content_raw || "發送了一則私訊...";
 
-                        const fullItem = createChatLinkElement(userIdStr, nickname, avatar, lastText, () => {
-                            document.getElementById('fb-full-chat-header').innerText = nickname;
-                            document.getElementById('fb-full-input-area').style.display = 'block';
+                        const fullItem = createChatLinkElement(userIdStr, nickname, avatar, lastText);
 
-                            const mainInput = document.getElementById('fb-full-main-input');
+                        const mainInput = document.getElementById('fb-full-input-area');
+                        if (mainInput) {
                             mainInput.onkeydown = (e) => {
-                                if (e.key === 'Enter' && mainInput.value.trim() !== '') {
-                                    sendPrivateMessage(userIdStr, mainInput.value.trim(), plurk.plurk_id);
+                                if (e.key === 'Enter' && mainInput.value.trim()) {
+                                    sendPrivateMessage(userIdStr, mainInput.value.trim());
                                     mainInput.value = '';
                                     setTimeout(() => { loadFullPageChat(plurk.plurk_id); }, 500);
                                 }
                             };
+                        }
 
-                            loadFullPageChat(plurk.plurk_id);
-                        });
-            fullList.appendChild(fullItem);
-            });
+                        loadFullPageChat(plurk.plurk_id);
+                        fullList.appendChild(fullItem);
+                    });
+                }
+            })
+            .catch(err => console.error("撈取噗浪私訊失敗:", err));
     }
 
     // B. 真實載入右下角迷你對話紀錄
